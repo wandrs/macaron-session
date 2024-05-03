@@ -93,9 +93,26 @@ func (s *RedisStore) Prefix() string {
 
 // Release releases resource and save data to provider.
 func (s *RedisStore) Release() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	// Skip encoding if the data is empty
 	if len(s.data) == 0 {
 		return nil
+	}
+
+	var dur time.Duration
+	if exp, found := s.data[session.KeyExpirationTime]; found {
+		exptime, ok := exp.(time.Time)
+		if ok {
+			dur = exptime.Sub(time.Now())
+		} else {
+			dur = s.duration
+		}
+	}
+
+	if dur <= 0 {
+		dur = s.duration
 	}
 
 	data, err := session.EncodeGob(s.data)
@@ -103,7 +120,7 @@ func (s *RedisStore) Release() error {
 		return err
 	}
 
-	return s.c.Set(ctx, s.prefix+s.sid, string(data), s.duration).Err()
+	return s.c.Set(ctx, s.prefix+s.sid, string(data), dur).Err()
 }
 
 // Flush deletes all session data.
@@ -144,17 +161,26 @@ func getHubStoreKeyPattern() string {
 }
 
 func (h *RedisHubStore) Add(sessionKey string, exp time.Time) error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	h.data[sessionKey] = exp
 	return nil
 }
 
 func (h *RedisHubStore) Remove(sessionKey string) error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	delete(h.data, sessionKey)
 	h.cleanup[sessionKey] = struct{}{}
 	return nil
 }
 
 func (h *RedisHubStore) RemoveAll() error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	for k := range h.data {
 		h.cleanup[k] = struct{}{}
 	}
@@ -163,18 +189,28 @@ func (h *RedisHubStore) RemoveAll() error {
 }
 
 func (h *RedisHubStore) RemoveExcept(sessionKey string) error {
+	_ = h.addForCleanUpExcept(sessionKey)
+
+	backupVal := h.data[sessionKey]
+	h.data = map[string]time.Time{}
+	_ = h.Add(sessionKey, backupVal)
+
+	return nil
+}
+
+func (h *RedisHubStore) addForCleanUpExcept(sessionKey string) error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	for k := range h.data {
 		h.cleanup[k] = struct{}{}
 	}
 	delete(h.cleanup, sessionKey)
 
-	backupVal := h.data[sessionKey]
-	_ = h.RemoveAll()
-	_ = h.Add(sessionKey, backupVal)
 	return nil
 }
 
-func (h *RedisHubStore) FlushExpired() error {
+func (h *RedisHubStore) flushExpired() error {
 	backupData := make(map[string]time.Time)
 	for k, exp := range h.data {
 		backupData[k] = exp
@@ -191,10 +227,13 @@ func (h *RedisHubStore) FlushExpired() error {
 }
 
 func (h *RedisHubStore) ReleaseHubData() error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	if len(h.data) == 0 {
 		return nil
 	}
-	_ = h.FlushExpired()
+	_ = h.flushExpired()
 
 	convertedMap := make(map[any]any)
 	for k, exp := range h.data {
@@ -357,8 +396,6 @@ func (p *RedisProvider) Read(sid string) (session.RawStore, error) {
 	}
 	if len(kvs) == 0 {
 		kv = make(map[interface{}]interface{})
-		kv["_old_uid"] = "0"
-		kv["exp"] = time.Now().Add(p.duration).Add(time.Minute)
 	} else {
 		kv, err = session.DecodeGob([]byte(kvs))
 		if err != nil {
@@ -539,6 +576,11 @@ func (p *RedisProvider) ReadSessionHubStore(uid string) (session.HubStore, error
 	}
 
 	return NewRedisHubStore(p.c, uid, p.prefix, hubData)
+}
+
+// SessionDuration returns the duration set for the session
+func (p *RedisProvider) SessionDuration() time.Duration {
+	return p.duration
 }
 
 func init() {

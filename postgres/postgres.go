@@ -115,6 +115,8 @@ type PostgresProvider struct {
 	maxlifetime int64
 }
 
+var _ session.Provider = (*PostgresProvider)(nil)
+
 // Init initializes postgres session provider.
 // connStr: user=a password=b host=localhost port=5432 dbname=c sslmode=disable
 func (p *PostgresProvider) Init(maxlifetime int64, connStr string) (err error) {
@@ -209,6 +211,11 @@ func (p *PostgresProvider) GC() {
 func (p *PostgresProvider) ReadSessionHubStore(uid string) (session.HubStore, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// SessionDuration returns the duration set for the session
+func (p *PostgresProvider) SessionDuration() time.Duration {
+	return time.Duration(p.maxlifetime)
 }
 
 func init() {

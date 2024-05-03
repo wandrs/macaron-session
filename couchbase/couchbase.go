@@ -19,6 +19,7 @@ import (
 	"github.com/couchbase/go-couchbase"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-macaron/session"
 )
@@ -104,6 +105,8 @@ type CouchbaseProvider struct {
 	bucket      string
 	b           *couchbase.Bucket
 }
+
+var _ session.Provider = (*CouchbaseProvider)(nil)
 
 func (p *CouchbaseProvider) getBucket() *couchbase.Bucket {
 	c, err := couchbase.Connect(p.connStr)
@@ -239,6 +242,11 @@ func (p *CouchbaseProvider) GC() {}
 func (p *CouchbaseProvider) ReadSessionHubStore(uid string) (session.HubStore, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// SessionDuration returns the duration set for the session
+func (p *CouchbaseProvider) SessionDuration() time.Duration {
+	return time.Duration(p.maxlifetime)
 }
 
 func init() {
