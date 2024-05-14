@@ -93,6 +93,8 @@ type MemProvider struct {
 	list *list.List
 }
 
+var _ Provider = (*MemProvider)(nil)
+
 // Init initializes memory session provider.
 func (p *MemProvider) Init(maxLifetime int64, _ string) error {
 	p.lock.Lock()
@@ -220,6 +222,11 @@ func (p *MemProvider) GC() {
 func (p *MemProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// SessionDuration returns the duration set for the session
+func (p *MemProvider) SessionDuration() time.Duration {
+	return time.Duration(p.maxLifetime)
 }
 
 func init() {

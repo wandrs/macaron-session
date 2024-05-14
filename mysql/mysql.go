@@ -114,6 +114,8 @@ type MysqlProvider struct {
 	expire int64
 }
 
+var _ session.Provider = (*MysqlProvider)(nil)
+
 // Init initializes mysql session provider.
 // connStr: username:password@protocol(address)/dbname?param=value
 func (p *MysqlProvider) Init(expire int64, connStr string) (err error) {
@@ -208,6 +210,11 @@ func (p *MysqlProvider) GC() {
 func (p *MysqlProvider) ReadSessionHubStore(uid string) (session.HubStore, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// SessionDuration returns the duration set for the session
+func (p *MysqlProvider) SessionDuration() time.Duration {
+	return time.Duration(p.expire)
 }
 
 func init() {

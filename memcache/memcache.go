@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
 
@@ -120,6 +121,8 @@ type MemcacheProvider struct {
 	expire int32
 }
 
+var _ session.Provider = (*MemcacheProvider)(nil)
+
 // Init initializes memcache session provider.
 // connStrs: 127.0.0.1:9090;127.0.0.1:9091
 func (p *MemcacheProvider) Init(expire int64, connStrs string) error {
@@ -210,6 +213,11 @@ func (p *MemcacheProvider) GC() {}
 func (p *MemcacheProvider) ReadSessionHubStore(uid string) (session.HubStore, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// SessionDuration returns the duration set for the session
+func (p *MemcacheProvider) SessionDuration() time.Duration {
+	return time.Duration(p.expire)
 }
 
 func init() {

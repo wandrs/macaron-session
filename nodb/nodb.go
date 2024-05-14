@@ -17,6 +17,7 @@ package session
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"gitea.com/lunny/nodb"
 	"gitea.com/lunny/nodb/config"
@@ -214,6 +215,11 @@ func (p *NodbProvider) GC() {}
 func (p *NodbProvider) ReadSessionHubStore(uid string) (session.HubStore, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// SessionDuration returns the duration set for the session
+func (p *NodbProvider) SessionDuration() time.Duration {
+	return time.Duration(p.expire)
 }
 
 func init() {

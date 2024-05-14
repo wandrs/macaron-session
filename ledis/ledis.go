@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/siddontang/ledisdb/config"
 	"github.com/siddontang/ledisdb/ledis"
@@ -118,6 +119,8 @@ type LedisProvider struct {
 	c      *ledis.DB
 	expire int64
 }
+
+var _ session.Provider = (*LedisProvider)(nil)
 
 // Init initializes ledis session provider.
 // configs: data_dir=./app.db,db=0
@@ -233,6 +236,11 @@ func (p *LedisProvider) GC() {
 func (p *LedisProvider) ReadSessionHubStore(uid string) (session.HubStore, error) {
 	//TODO implement me
 	panic("implement me")
+}
+
+// SessionDuration returns the duration set for the session
+func (p *LedisProvider) SessionDuration() time.Duration {
+	return time.Duration(p.expire)
 }
 
 func init() {

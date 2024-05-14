@@ -50,6 +50,7 @@ type RawStore interface {
 }
 
 const (
+	KeySessionID      = "sid"
 	KeyUserID         = "uid"
 	KeyUsername       = "uname"
 	KeyExpirationTime = "exp"
@@ -78,7 +79,6 @@ type HubStore interface {
 	Remove(string) error
 	RemoveAll() error
 	RemoveExcept(string) error
-	FlushExpired() error
 	ReleaseHubData() error
 }
 
@@ -216,6 +216,10 @@ func Sessioner(options ...Options) macaron.Handler {
 		var hubStore HubStore
 		if userID != nil {
 			hubStore, _ = manager.ReadSessionHubOfUser(userID.(string))
+			sessionExpTime, ok := sess.Get(KeyExpirationTime).(time.Time)
+			if ok {
+				_ = hubStore.Add(sess.ID(), sessionExpTime)
+			}
 		}
 
 		ctx.Map(f)
@@ -252,6 +256,8 @@ type Provider interface {
 	Read(sid string) (RawStore, error)
 	// ReadSessionHubStore returns all the sessions of user specified by user id
 	ReadSessionHubStore(uid string) (HubStore, error)
+	// SessionDuration returns the duration set for the session
+	SessionDuration() time.Duration
 	// Exist returns true if session with given ID exists.
 	Exist(sid string) bool
 	// Destory deletes a session by session ID.
