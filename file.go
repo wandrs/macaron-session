@@ -109,12 +109,12 @@ type FileHubStore struct {
 	uid, sessPrefix string
 	lock            sync.RWMutex
 	cleanup         map[string]struct{}
-	data            map[string]time.Time
+	data            map[string]SessInfo
 }
 
 var _ HubStore = (*FileHubStore)(nil)
 
-func NewFileHubStore(p *FileProvider, uid string, data map[string]time.Time) (*FileHubStore, error) {
+func NewFileHubStore(p *FileProvider, uid string, data map[string]SessInfo) (*FileHubStore, error) {
 	return &FileHubStore{
 		p:       p,
 		uid:     uid,
@@ -127,11 +127,11 @@ func getHubStoreKey(uid string) string {
 	return fmt.Sprintf("sessions.user.%v", uid)
 }
 
-func (h *FileHubStore) Add(sessionKey string, exp time.Time) error {
+func (h *FileHubStore) Add(sessionKey string, si SessInfo) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	h.data[sessionKey] = exp
+	h.data[sessionKey] = si
 	return nil
 }
 
@@ -151,7 +151,7 @@ func (h *FileHubStore) RemoveAll() error {
 	for k := range h.data {
 		h.cleanup[k] = struct{}{}
 	}
-	h.data = make(map[string]time.Time)
+	h.data = make(map[string]SessInfo)
 	return nil
 }
 
@@ -159,7 +159,7 @@ func (h *FileHubStore) RemoveExcept(sessionKey string) error {
 	_ = h.addForCleanUpExcept(sessionKey)
 
 	backupVal := h.data[sessionKey]
-	h.data = map[string]time.Time{}
+	h.data = map[string]SessInfo{}
 	_ = h.Add(sessionKey, backupVal)
 
 	return nil
@@ -178,13 +178,13 @@ func (h *FileHubStore) addForCleanUpExcept(sessionKey string) error {
 }
 
 func (h *FileHubStore) flushExpired() error {
-	backupData := make(map[string]time.Time)
-	for k, exp := range h.data {
-		backupData[k] = exp
+	backupData := make(map[string]SessInfo)
+	for k, si := range h.data {
+		backupData[k] = si
 	}
 	currentTime := time.Now()
-	for k, exp := range backupData {
-		if exp.Before(currentTime) {
+	for k, si := range backupData {
+		if si.Exp.Before(currentTime) {
 			h.cleanup[k] = struct{}{}
 			delete(h.data, k)
 		}
@@ -227,6 +227,15 @@ func (h *FileHubStore) executeCleanup() error {
 	}
 
 	return nil
+}
+
+func (h *FileHubStore) List() []SessInfo {
+	sessions := make([]SessInfo, 0)
+	for _, si := range h.data {
+		sessions = append(sessions, si)
+	}
+
+	return sessions
 }
 
 // FileProvider represents a file session provider implementation.
@@ -417,7 +426,7 @@ func (p *FileProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 		}
 	}
 
-	var hubData = make(map[string]time.Time)
+	var hubData = make(map[string]SessInfo)
 	result, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -430,8 +439,8 @@ func (p *FileProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 			return nil, err
 		}
 
-		for k, exp := range m {
-			hubData[k.(string)] = exp.(time.Time)
+		for k, si := range m {
+			hubData[k.(string)] = si.(SessInfo)
 		}
 	}
 

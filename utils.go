@@ -35,6 +35,8 @@ func init() {
 	gob.Register(map[int]int{})
 	gob.Register(map[int]int64{})
 	gob.Register(map[string]time.Time{})
+	gob.Register(map[string]SessInfo{})
+	gob.Register(SessInfo{})
 	gob.Register(time.Time{})
 }
 

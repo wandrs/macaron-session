@@ -54,6 +54,7 @@ const (
 	KeyUserID         = "uid"
 	KeyUsername       = "uname"
 	KeyExpirationTime = "exp"
+	KeySessionInfo    = "si"
 )
 
 // Store is the interface that contains all data for one session process with specific ID.
@@ -74,9 +75,95 @@ type Store interface {
 	GC()
 }
 
+type SessInfo struct {
+	SessionID string    `json:"sessionID"`
+	Exp       time.Time `json:"-"`
+
+	AgentName    string    `json:"agentName"`
+	AgentVersion string    `json:"agentVersion"`
+	Device       string    `json:"device"`
+	DeviceType   string    `json:"deviceType"`
+	Os           string    `json:"os"`
+	LastAccessed time.Time `json:"-"`
+
+	GeoLocation GeoLocation `json:"geoLocation"`
+	IP          string      `json:"IP"`
+}
+
+type GeoLocation struct {
+	Continent      string `json:"continent,omitempty"`
+	Country        string `json:"country,omitempty"`
+	CountryIsoCode string `json:"countryIsoCode,omitempty"`
+	City           string `json:"city,omitempty"`
+	TimeZone       string `json:"timeZone,omitempty"`
+}
+
+func NewSessInfo(sid string, exp time.Time, optsHandlers ...SessOptionHandler) SessInfo {
+	si := SessInfo{}
+
+	si.Exp = exp
+	si.SessionID = sid
+	for _, optsHandler := range optsHandlers {
+		optsHandler(&si)
+	}
+
+	return si
+}
+
+type SessOptionHandler func(si *SessInfo)
+
+func WithDevice(device string) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.Device = device
+	}
+}
+
+func WithDeviceType(deviceType string) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.DeviceType = deviceType
+	}
+}
+
+func WithOS(os string) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.Os = os
+	}
+}
+
+func WithLastAccessTime(lastAccessedTime time.Time) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.LastAccessed = lastAccessedTime
+	}
+}
+
+func WithIP(ip string) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.IP = ip
+	}
+}
+
+func WithAgentName(agent string) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.AgentName = agent
+	}
+}
+
+func WithAgentVersion(version string) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.AgentVersion = version
+	}
+}
+
+func WithGeoLocation(geolocation GeoLocation) SessOptionHandler {
+	return func(si *SessInfo) {
+		si.GeoLocation = geolocation
+	}
+}
+
 type HubStore interface {
-	Add(string, time.Time) error
+	Add(string, SessInfo) error
 	Remove(string) error
+	List() []SessInfo
 	RemoveAll() error
 	RemoveExcept(string) error
 	ReleaseHubData() error
@@ -216,9 +303,12 @@ func Sessioner(options ...Options) macaron.Handler {
 		var hubStore HubStore
 		if userID != nil {
 			hubStore, _ = manager.ReadSessionHubOfUser(userID.(string))
-			sessionExpTime, ok := sess.Get(KeyExpirationTime).(time.Time)
+
+			sessInfo, ok := sess.Get(KeySessionInfo).(SessInfo)
+			sessInfo.LastAccessed = time.Now()
+			_ = sess.Set(KeySessionInfo, sessInfo)
 			if ok {
-				_ = hubStore.Add(sess.ID(), sessionExpTime)
+				_ = hubStore.Add(sess.ID(), sessInfo)
 			}
 		}
 
