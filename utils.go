@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/gob"
+	"github.com/oschwald/geoip2-golang"
 	"io"
 	"time"
 
@@ -35,9 +36,12 @@ func init() {
 	gob.Register(map[int]int{})
 	gob.Register(map[int]int64{})
 	gob.Register(map[string]time.Time{})
-	gob.Register(map[string]SessInfo{})
+	gob.Register(map[DeviceFingerprint]TrustedDeviceInfo{})
+	gob.Register(map[LocationFingerprint]geoip2.City{})
+	gob.Register(geoip2.City{})
+	gob.Register(TrustedDeviceInfo{})
 	gob.Register(SessInfo{})
-	gob.Register(time.Time{})
+	gob.Register(HubData{})
 }
 
 func EncodeGob(obj map[interface{}]interface{}) ([]byte, error) {
@@ -53,6 +57,19 @@ func DecodeGob(encoded []byte) (out map[interface{}]interface{}, err error) {
 	buf := bytes.NewBuffer(encoded)
 	err = gob.NewDecoder(buf).Decode(&out)
 	return out, err
+}
+
+func EncodeHubGob(data HubData) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	err := gob.NewEncoder(buf).Encode(data)
+	return buf.Bytes(), err
+}
+
+func DecodeHubGob(encoded []byte) (out HubData, err error) {
+	buf := bytes.NewBuffer(encoded)
+	err = gob.NewEncoder(buf).Encode(&out)
+
+	return
 }
 
 // NOTE: A local copy in case of underlying package change

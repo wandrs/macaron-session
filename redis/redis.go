@@ -18,6 +18,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"github.com/oschwald/geoip2-golang"
 	"log/slog"
 	"strings"
 	"sync"
@@ -132,17 +133,19 @@ func (s *RedisStore) Flush() error {
 	return nil
 }
 
+/* ================================== RedisHubStore ======================================== */
+
 type RedisHubStore struct {
 	c               *redis.Client
 	uid, sessPrefix string
 	lock            sync.RWMutex
 	cleanup         map[string]struct{}
-	data            map[string]session.SessInfo
+	data            session.HubData
 }
 
 var _ session.HubStore = (*RedisHubStore)(nil)
 
-func NewRedisHubStore(c *redis.Client, uid, sessPrefix string, data map[string]session.SessInfo) (*RedisHubStore, error) {
+func NewRedisHubStore(c *redis.Client, uid, sessPrefix string, data session.HubData) (*RedisHubStore, error) {
 	return &RedisHubStore{
 		c:          c,
 		uid:        uid,
@@ -164,7 +167,7 @@ func (h *RedisHubStore) Add(sessionKey string, si session.SessInfo) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	h.data[sessionKey] = si
+	h.data.SessInfos[sessionKey] = si
 	return nil
 }
 
@@ -172,7 +175,7 @@ func (h *RedisHubStore) Remove(sessionKey string) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	delete(h.data, sessionKey)
+	delete(h.data.SessInfos, sessionKey)
 	h.cleanup[sessionKey] = struct{}{}
 	return nil
 }
@@ -181,18 +184,18 @@ func (h *RedisHubStore) RemoveAll() error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	for k := range h.data {
+	for k := range h.data.SessInfos {
 		h.cleanup[k] = struct{}{}
 	}
-	h.data = make(map[string]session.SessInfo)
+	h.data.SessInfos = make(map[string]session.SessInfo)
 	return nil
 }
 
 func (h *RedisHubStore) RemoveExcept(sessionKey string) error {
 	_ = h.addForCleanUpExcept(sessionKey)
 
-	backupVal := h.data[sessionKey]
-	h.data = map[string]session.SessInfo{}
+	backupVal := h.data.SessInfos[sessionKey]
+	h.data.SessInfos = map[string]session.SessInfo{}
 	_ = h.Add(sessionKey, backupVal)
 
 	return nil
@@ -202,7 +205,7 @@ func (h *RedisHubStore) addForCleanUpExcept(sessionKey string) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	for k := range h.data {
+	for k := range h.data.SessInfos {
 		h.cleanup[k] = struct{}{}
 	}
 	delete(h.cleanup, sessionKey)
@@ -212,14 +215,14 @@ func (h *RedisHubStore) addForCleanUpExcept(sessionKey string) error {
 
 func (h *RedisHubStore) flushExpired() error {
 	backupData := make(map[string]session.SessInfo)
-	for k, exp := range h.data {
+	for k, exp := range h.data.SessInfos {
 		backupData[k] = exp
 	}
 	currentTime := time.Now()
 	for k, si := range backupData {
 		if si.Exp.Before(currentTime) {
 			h.cleanup[k] = struct{}{}
-			delete(h.data, k)
+			delete(h.data.SessInfos, k)
 		}
 	}
 
@@ -230,17 +233,12 @@ func (h *RedisHubStore) ReleaseHubData() error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	if len(h.data) == 0 {
+	if len(h.data.SessInfos) == 0 {
 		return nil
 	}
 	_ = h.flushExpired()
 
-	convertedMap := make(map[any]any)
-	for k, exp := range h.data {
-		convertedMap[k] = exp
-	}
-
-	data, err := session.EncodeGob(convertedMap)
+	data, err := session.EncodeHubGob(h.data)
 	if err != nil {
 		return err
 	}
@@ -279,7 +277,7 @@ func (h *RedisHubStore) executeCleanup() error {
 
 func (h *RedisHubStore) List() []session.SessInfo {
 	sessions := make([]session.SessInfo, 0)
-	for _, si := range h.data {
+	for _, si := range h.data.SessInfos {
 		if si.SessionID == "" {
 			continue
 		}
@@ -288,6 +286,8 @@ func (h *RedisHubStore) List() []session.SessInfo {
 
 	return sessions
 }
+
+/* ================================== RedisProvider ======================================== */
 
 // RedisProvider represents a redis session provider implementation.
 type RedisProvider struct {
@@ -487,7 +487,7 @@ func (p *RedisProvider) GC() {
 	var cursor uint64
 	var err error
 	var keys []string
-	var sessionHubData = make(map[string]any)
+	var usersHubData = make(map[string]any)
 	for {
 		keys, cursor, err = p.c.Scan(ctx, cursor, keyPattern, countBatchProcess).Result()
 		if err != nil {
@@ -516,7 +516,7 @@ func (p *RedisProvider) GC() {
 				slog.Error("garbage collection error: %v", err)
 				continue
 			}
-			sessionHubData[keys[i]], err = session.DecodeGob([]byte(result))
+			usersHubData[keys[i]], err = session.DecodeGob([]byte(result))
 			if err != nil {
 				slog.Error("garbage collection error: failed to decode values of key: %v", keys[i])
 				continue
@@ -524,32 +524,18 @@ func (p *RedisProvider) GC() {
 		}
 	}
 
-	for k, data := range sessionHubData {
+	for k, data := range usersHubData {
 		parts := strings.Split(k, ".")
 		uid := parts[len(parts)-1]
 
 		if data != nil {
-			parsedData, ok := data.(map[any]any)
+			parsedData, ok := data.(session.HubData)
 			if !ok {
-				slog.Error("")
+				slog.Error("garbage collection error: failed to parse user's hub data: data is not of type session.HubData")
+				continue
 			}
 
-			actualData := make(map[string]session.SessInfo)
-			for k, v := range parsedData {
-				key, ok := k.(string)
-				if !ok {
-					slog.Error("garbage collection error: failed to parse key from interface data")
-					continue
-				}
-				value, ok := v.(session.SessInfo)
-				if !ok {
-					slog.Error("garbage collection error: failed to parse value from interface data")
-					continue
-				}
-
-				actualData[key] = value
-			}
-			hubStore, _ := NewRedisHubStore(p.c, uid, p.prefix, actualData)
+			hubStore, _ := NewRedisHubStore(p.c, uid, p.prefix, parsedData)
 			if err = hubStore.ReleaseHubData(); err != nil {
 				slog.Error("garbage collection error: failed to release hub data for key: %v, err: %v", k, err.Error())
 			}
@@ -569,22 +555,26 @@ func (p *RedisProvider) ReadSessionHubStore(uid string) (session.HubStore, error
 		}
 	}
 
-	var hubData = make(map[string]session.SessInfo)
 	result, err := p.c.Get(ctx, hubKey).Result()
 	if err != nil {
 		return nil, err
 	}
 
+	var hubData session.HubData
 	if len(result) > 0 {
-		m := make(map[any]any)
-		m, err = session.DecodeGob([]byte(result))
+		hubData, err = session.DecodeHubGob([]byte(result))
 		if err != nil {
 			return nil, err
 		}
-
-		for k, si := range m {
-			hubData[k.(string)] = si.(session.SessInfo)
-		}
+	}
+	if hubData.TrustedDevices == nil {
+		hubData.TrustedDevices = make(map[session.DeviceFingerprint]session.TrustedDeviceInfo)
+	}
+	if hubData.TrustedLocations == nil {
+		hubData.TrustedLocations = make(map[session.LocationFingerprint]geoip2.City)
+	}
+	if hubData.SessInfos == nil {
+		hubData.SessInfos = make(map[string]session.SessInfo)
 	}
 
 	return NewRedisHubStore(p.c, uid, p.prefix, hubData)

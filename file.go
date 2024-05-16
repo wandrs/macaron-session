@@ -17,6 +17,7 @@ package session
 
 import (
 	"fmt"
+	"github.com/oschwald/geoip2-golang"
 	"io/ioutil"
 	"log"
 	"log/slog"
@@ -104,17 +105,19 @@ func (s *FileStore) Flush() error {
 	return nil
 }
 
+/* ================================== FileHubStore ======================================== */
+
 type FileHubStore struct {
 	p               *FileProvider
 	uid, sessPrefix string
 	lock            sync.RWMutex
 	cleanup         map[string]struct{}
-	data            map[string]SessInfo
+	data            HubData
 }
 
 var _ HubStore = (*FileHubStore)(nil)
 
-func NewFileHubStore(p *FileProvider, uid string, data map[string]SessInfo) (*FileHubStore, error) {
+func NewFileHubStore(p *FileProvider, uid string, data HubData) (*FileHubStore, error) {
 	return &FileHubStore{
 		p:       p,
 		uid:     uid,
@@ -131,7 +134,7 @@ func (h *FileHubStore) Add(sessionKey string, si SessInfo) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	h.data[sessionKey] = si
+	h.data.SessInfos[sessionKey] = si
 	return nil
 }
 
@@ -139,7 +142,7 @@ func (h *FileHubStore) Remove(sessionKey string) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	delete(h.data, sessionKey)
+	delete(h.data.SessInfos, sessionKey)
 	h.cleanup[sessionKey] = struct{}{}
 	return nil
 }
@@ -148,18 +151,18 @@ func (h *FileHubStore) RemoveAll() error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	for k := range h.data {
+	for k := range h.data.SessInfos {
 		h.cleanup[k] = struct{}{}
 	}
-	h.data = make(map[string]SessInfo)
+	h.data.SessInfos = make(map[string]SessInfo)
 	return nil
 }
 
 func (h *FileHubStore) RemoveExcept(sessionKey string) error {
 	_ = h.addForCleanUpExcept(sessionKey)
 
-	backupVal := h.data[sessionKey]
-	h.data = map[string]SessInfo{}
+	backupVal := h.data.SessInfos[sessionKey]
+	h.data.SessInfos = map[string]SessInfo{}
 	_ = h.Add(sessionKey, backupVal)
 
 	return nil
@@ -169,7 +172,7 @@ func (h *FileHubStore) addForCleanUpExcept(sessionKey string) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	for k := range h.data {
+	for k := range h.data.SessInfos {
 		h.cleanup[k] = struct{}{}
 	}
 	delete(h.cleanup, sessionKey)
@@ -179,14 +182,14 @@ func (h *FileHubStore) addForCleanUpExcept(sessionKey string) error {
 
 func (h *FileHubStore) flushExpired() error {
 	backupData := make(map[string]SessInfo)
-	for k, si := range h.data {
+	for k, si := range h.data.SessInfos {
 		backupData[k] = si
 	}
 	currentTime := time.Now()
 	for k, si := range backupData {
 		if si.Exp.Before(currentTime) {
 			h.cleanup[k] = struct{}{}
-			delete(h.data, k)
+			delete(h.data.SessInfos, k)
 		}
 	}
 
@@ -197,17 +200,12 @@ func (h *FileHubStore) ReleaseHubData() error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	if len(h.data) == 0 {
+	if len(h.data.SessInfos) == 0 {
 		return nil
 	}
 	_ = h.flushExpired()
 
-	convertedMap := make(map[any]any)
-	for k, exp := range h.data {
-		convertedMap[k] = exp
-	}
-
-	data, err := EncodeGob(convertedMap)
+	data, err := EncodeHubGob(h.data)
 	if err != nil {
 		return err
 	}
@@ -231,12 +229,17 @@ func (h *FileHubStore) executeCleanup() error {
 
 func (h *FileHubStore) List() []SessInfo {
 	sessions := make([]SessInfo, 0)
-	for _, si := range h.data {
+	for _, si := range h.data.SessInfos {
+		if si.SessionID == "" {
+			continue
+		}
 		sessions = append(sessions, si)
 	}
 
 	return sessions
 }
+
+/* ================================== FileProvider ======================================== */
 
 // FileProvider represents a file session provider implementation.
 type FileProvider struct {
@@ -426,21 +429,20 @@ func (p *FileProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 		}
 	}
 
-	var hubData = make(map[string]SessInfo)
 	result, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
+	hubData := HubData{
+		TrustedDevices:   make(map[DeviceFingerprint]TrustedDeviceInfo),
+		TrustedLocations: make(map[LocationFingerprint]geoip2.City),
+		SessInfos:        make(map[string]SessInfo),
+	}
 	if len(result) > 0 {
-		m := make(map[any]any)
-		m, err = DecodeGob(result)
+		hubData, err = DecodeHubGob(result)
 		if err != nil {
 			return nil, err
-		}
-
-		for k, si := range m {
-			hubData[k.(string)] = si.(SessInfo)
 		}
 	}
 

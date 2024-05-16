@@ -9,6 +9,7 @@ require (
 	github.com/go-redis/redis/v8 v8.4.0
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/lib/pq v1.2.0
+	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/siddontang/ledisdb v0.0.0-20190202134119-8ceb77e66a92
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337
 	github.com/unknwon/com v1.0.1
@@ -28,6 +29,7 @@ require (
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
+	github.com/oschwald/maxminddb-golang v1.11.0 // indirect
 	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
@@ -38,6 +40,6 @@ require (
 	go.opentelemetry.io/otel v0.14.0 // indirect
 	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392 // indirect
 	golang.org/x/net v0.0.0-20201006153459-a7d1128ccaa0 // indirect
-	golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f // indirect
+	golang.org/x/sys v0.9.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 )
