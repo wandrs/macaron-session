@@ -217,6 +217,11 @@ func (p *NodbProvider) ReadSessionHubStore(uid string) (session.HubStore, error)
 	panic("implement me")
 }
 
+// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *NodbProvider) FlushNonCompatibleUserSessionHubData() error {
+	panic("implement me")
+}
+
 // SessionDuration returns the duration set for the session
 func (p *NodbProvider) SessionDuration() time.Duration {
 	return time.Duration(p.expire)

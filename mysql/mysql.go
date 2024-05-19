@@ -212,6 +212,11 @@ func (p *MysqlProvider) ReadSessionHubStore(uid string) (session.HubStore, error
 	panic("implement me")
 }
 
+// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *MysqlProvider) FlushNonCompatibleUserSessionHubData() error {
+	panic("implement me")
+}
+
 // SessionDuration returns the duration set for the session
 func (p *MysqlProvider) SessionDuration() time.Duration {
 	return time.Duration(p.expire)

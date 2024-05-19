@@ -178,6 +178,7 @@ func Sessioner(options ...Options) macaron.Handler {
 	if err != nil {
 		panic(err)
 	}
+	manager.FlushNonCompatibleUserSessionHubData()
 	go manager.startGC()
 
 	return func(ctx *macaron.Context) {
@@ -252,6 +253,8 @@ type Provider interface {
 	Read(sid string) (RawStore, error)
 	// ReadSessionHubStore returns all the sessions of user specified by user id
 	ReadSessionHubStore(uid string) (HubStore, error)
+	// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+	FlushNonCompatibleUserSessionHubData() error
 	// SessionDuration returns the duration set for the session
 	SessionDuration() time.Duration
 	// Exist returns true if session with given ID exists.
@@ -448,4 +451,8 @@ func (m *Manager) SetSecure(secure bool) {
 // ReadSessionHubOfUser returns all the sessions of user specified by user id
 func (m *Manager) ReadSessionHubOfUser(uid string) (HubStore, error) {
 	return m.provider.ReadSessionHubStore(uid)
+}
+
+func (m *Manager) FlushNonCompatibleUserSessionHubData() {
+	m.provider.FlushNonCompatibleUserSessionHubData()
 }

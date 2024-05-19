@@ -215,6 +215,11 @@ func (p *MemcacheProvider) ReadSessionHubStore(uid string) (session.HubStore, er
 	panic("implement me")
 }
 
+// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *MemcacheProvider) FlushNonCompatibleUserSessionHubData() error {
+	panic("implement me")
+}
+
 // SessionDuration returns the duration set for the session
 func (p *MemcacheProvider) SessionDuration() time.Duration {
 	return time.Duration(p.expire)

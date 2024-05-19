@@ -17,7 +17,6 @@ package session
 
 import (
 	"fmt"
-	"github.com/oschwald/geoip2-golang"
 	"io/ioutil"
 	"log"
 	"log/slog"
@@ -112,12 +111,12 @@ type FileHubStore struct {
 	uid, sessPrefix string
 	lock            sync.RWMutex
 	cleanup         map[string]struct{}
-	data            HubData
+	data            UserSessionHub
 }
 
 var _ HubStore = (*FileHubStore)(nil)
 
-func NewFileHubStore(p *FileProvider, uid string, data HubData) (*FileHubStore, error) {
+func NewFileHubStore(p *FileProvider, uid string, data UserSessionHub) (*FileHubStore, error) {
 	return &FileHubStore{
 		p:       p,
 		uid:     uid,
@@ -134,7 +133,7 @@ func (h *FileHubStore) Add(sessionKey string, si SessInfo) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	h.data.SessInfos[sessionKey] = si
+	h.data.SessionStore[sessionKey] = si
 	return nil
 }
 
@@ -142,7 +141,7 @@ func (h *FileHubStore) Remove(sessionKey string) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	delete(h.data.SessInfos, sessionKey)
+	delete(h.data.SessionStore, sessionKey)
 	h.cleanup[sessionKey] = struct{}{}
 	return nil
 }
@@ -151,18 +150,18 @@ func (h *FileHubStore) RemoveAll() error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	for k := range h.data.SessInfos {
+	for k := range h.data.SessionStore {
 		h.cleanup[k] = struct{}{}
 	}
-	h.data.SessInfos = make(map[string]SessInfo)
+	h.data.SessionStore = make(map[string]SessInfo)
 	return nil
 }
 
 func (h *FileHubStore) RemoveExcept(sessionKey string) error {
 	_ = h.addForCleanUpExcept(sessionKey)
 
-	backupVal := h.data.SessInfos[sessionKey]
-	h.data.SessInfos = map[string]SessInfo{}
+	backupVal := h.data.SessionStore[sessionKey]
+	h.data.SessionStore = map[string]SessInfo{}
 	_ = h.Add(sessionKey, backupVal)
 
 	return nil
@@ -172,7 +171,7 @@ func (h *FileHubStore) addForCleanUpExcept(sessionKey string) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	for k := range h.data.SessInfos {
+	for k := range h.data.SessionStore {
 		h.cleanup[k] = struct{}{}
 	}
 	delete(h.cleanup, sessionKey)
@@ -182,14 +181,14 @@ func (h *FileHubStore) addForCleanUpExcept(sessionKey string) error {
 
 func (h *FileHubStore) flushExpired() error {
 	backupData := make(map[string]SessInfo)
-	for k, si := range h.data.SessInfos {
+	for k, si := range h.data.SessionStore {
 		backupData[k] = si
 	}
 	currentTime := time.Now()
 	for k, si := range backupData {
 		if si.Exp.Before(currentTime) {
 			h.cleanup[k] = struct{}{}
-			delete(h.data.SessInfos, k)
+			delete(h.data.SessionStore, k)
 		}
 	}
 
@@ -200,12 +199,12 @@ func (h *FileHubStore) ReleaseHubData() error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	if len(h.data.SessInfos) == 0 {
+	if len(h.data.SessionStore) == 0 {
 		return nil
 	}
 	_ = h.flushExpired()
 
-	data, err := EncodeHubGob(h.data)
+	data, err := EncodedUserSessionHub(h.data)
 	if err != nil {
 		return err
 	}
@@ -229,7 +228,7 @@ func (h *FileHubStore) executeCleanup() error {
 
 func (h *FileHubStore) List() []SessInfo {
 	sessions := make([]SessInfo, 0)
-	for _, si := range h.data.SessInfos {
+	for _, si := range h.data.SessionStore {
 		if si.SessionID == "" {
 			continue
 		}
@@ -424,6 +423,13 @@ func (p *FileProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 			if _, err = os.Create(filename); err != nil {
 				return nil, fmt.Errorf("failed to create hub store file: %v", err)
 			}
+			data, err := NewEmptyUserSessionData(uid)
+			if err != nil {
+				return nil, err
+			}
+			if err := os.WriteFile(filename, data, os.ModePerm); err != nil {
+				return nil, err
+			}
 		} else {
 			return nil, fmt.Errorf("failed to create hub store file: %v", err)
 		}
@@ -434,19 +440,20 @@ func (p *FileProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 		return nil, err
 	}
 
-	hubData := HubData{
-		TrustedDevices:   make(map[DeviceFingerprint]TrustedDeviceInfo),
-		TrustedLocations: make(map[LocationFingerprint]geoip2.City),
-		SessInfos:        make(map[string]SessInfo),
-	}
+	var hubData UserSessionHub
 	if len(result) > 0 {
-		hubData, err = DecodeHubGob(result)
+		hubData, err = DecodeUserSessionHub(result)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return NewFileHubStore(p, uid, hubData)
+}
+
+// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *FileProvider) FlushNonCompatibleUserSessionHubData() error {
+	return nil
 }
 
 // SessionDuration returns the duration set for the session

@@ -224,6 +224,11 @@ func (p *MemProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 	panic("implement me")
 }
 
+// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *MemProvider) FlushNonCompatibleUserSessionHubData() error {
+	panic("implement me")
+}
+
 // SessionDuration returns the duration set for the session
 func (p *MemProvider) SessionDuration() time.Duration {
 	return time.Duration(p.maxLifetime)

@@ -19,7 +19,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/gob"
-	"github.com/oschwald/geoip2-golang"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -35,13 +35,9 @@ func init() {
 	gob.Register(map[int]string{})
 	gob.Register(map[int]int{})
 	gob.Register(map[int]int64{})
-	gob.Register(map[string]time.Time{})
-	gob.Register(map[DeviceFingerprint]TrustedDeviceInfo{})
-	gob.Register(map[LocationFingerprint]geoip2.City{})
-	gob.Register(geoip2.City{})
-	gob.Register(TrustedDeviceInfo{})
 	gob.Register(SessInfo{})
-	gob.Register(HubData{})
+	gob.Register(time.Time{})
+	gob.Register(GeoLocation{})
 }
 
 func EncodeGob(obj map[interface{}]interface{}) ([]byte, error) {
@@ -59,17 +55,18 @@ func DecodeGob(encoded []byte) (out map[interface{}]interface{}, err error) {
 	return out, err
 }
 
-func EncodeHubGob(data HubData) ([]byte, error) {
-	buf := bytes.NewBuffer(nil)
-	err := gob.NewEncoder(buf).Encode(data)
-	return buf.Bytes(), err
+func EncodedUserSessionHub(obj UserSessionHub) ([]byte, error) {
+	return json.Marshal(obj)
 }
 
-func DecodeHubGob(encoded []byte) (out HubData, err error) {
-	buf := bytes.NewBuffer(encoded)
-	err = gob.NewEncoder(buf).Encode(&out)
+func DecodeUserSessionHub(encoded []byte) (UserSessionHub, error) {
+	hubData := new(UserSessionHub)
+	err := json.Unmarshal(encoded, hubData)
+	if err != nil {
+		return UserSessionHub{}, err
+	}
 
-	return
+	return *hubData, nil
 }
 
 // NOTE: A local copy in case of underlying package change
