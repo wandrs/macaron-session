@@ -54,6 +54,7 @@ const (
 	KeyUserID         = "uid"
 	KeyUsername       = "uname"
 	KeyExpirationTime = "exp"
+	KeySessionInfo    = "si"
 )
 
 // Store is the interface that contains all data for one session process with specific ID.
@@ -72,14 +73,6 @@ type Store interface {
 	Count() int
 	// GC calls GC to clean expired sessions.
 	GC()
-}
-
-type HubStore interface {
-	Add(string, time.Time) error
-	Remove(string) error
-	RemoveAll() error
-	RemoveExcept(string) error
-	ReleaseHubData() error
 }
 
 type store struct {
@@ -185,6 +178,7 @@ func Sessioner(options ...Options) macaron.Handler {
 	if err != nil {
 		panic(err)
 	}
+	manager.FlushNonCompatibleUserSessionHubData()
 	go manager.startGC()
 
 	return func(ctx *macaron.Context) {
@@ -216,9 +210,12 @@ func Sessioner(options ...Options) macaron.Handler {
 		var hubStore HubStore
 		if userID != nil {
 			hubStore, _ = manager.ReadSessionHubOfUser(userID.(string))
-			sessionExpTime, ok := sess.Get(KeyExpirationTime).(time.Time)
+
+			sessInfo, ok := sess.Get(KeySessionInfo).(SessInfo)
+			sessInfo.LastAccessed = time.Now()
+			_ = sess.Set(KeySessionInfo, sessInfo)
 			if ok {
-				_ = hubStore.Add(sess.ID(), sessionExpTime)
+				_ = hubStore.Add(sess.ID(), sessInfo)
 			}
 		}
 
@@ -256,6 +253,8 @@ type Provider interface {
 	Read(sid string) (RawStore, error)
 	// ReadSessionHubStore returns all the sessions of user specified by user id
 	ReadSessionHubStore(uid string) (HubStore, error)
+	// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+	FlushNonCompatibleUserSessionHubData() error
 	// SessionDuration returns the duration set for the session
 	SessionDuration() time.Duration
 	// Exist returns true if session with given ID exists.
@@ -452,4 +451,8 @@ func (m *Manager) SetSecure(secure bool) {
 // ReadSessionHubOfUser returns all the sessions of user specified by user id
 func (m *Manager) ReadSessionHubOfUser(uid string) (HubStore, error) {
 	return m.provider.ReadSessionHubStore(uid)
+}
+
+func (m *Manager) FlushNonCompatibleUserSessionHubData() {
+	m.provider.FlushNonCompatibleUserSessionHubData()
 }

@@ -238,6 +238,11 @@ func (p *LedisProvider) ReadSessionHubStore(uid string) (session.HubStore, error
 	panic("implement me")
 }
 
+// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *LedisProvider) FlushNonCompatibleUserSessionHubData() error {
+	panic("implement me")
+}
+
 // SessionDuration returns the duration set for the session
 func (p *LedisProvider) SessionDuration() time.Duration {
 	return time.Duration(p.expire)

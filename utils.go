@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/gob"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -34,8 +35,9 @@ func init() {
 	gob.Register(map[int]string{})
 	gob.Register(map[int]int{})
 	gob.Register(map[int]int64{})
-	gob.Register(map[string]time.Time{})
+	gob.Register(SessInfo{})
 	gob.Register(time.Time{})
+	gob.Register(GeoLocation{})
 }
 
 func EncodeGob(obj map[interface{}]interface{}) ([]byte, error) {
@@ -51,6 +53,20 @@ func DecodeGob(encoded []byte) (out map[interface{}]interface{}, err error) {
 	buf := bytes.NewBuffer(encoded)
 	err = gob.NewDecoder(buf).Decode(&out)
 	return out, err
+}
+
+func EncodedUserSessionHub(obj UserSessionHub) ([]byte, error) {
+	return json.Marshal(obj)
+}
+
+func DecodeUserSessionHub(encoded []byte) (UserSessionHub, error) {
+	hubData := new(UserSessionHub)
+	err := json.Unmarshal(encoded, hubData)
+	if err != nil {
+		return UserSessionHub{}, err
+	}
+
+	return *hubData, nil
 }
 
 // NOTE: A local copy in case of underlying package change

@@ -244,6 +244,11 @@ func (p *CouchbaseProvider) ReadSessionHubStore(uid string) (session.HubStore, e
 	panic("implement me")
 }
 
+// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *CouchbaseProvider) FlushNonCompatibleUserSessionHubData() error {
+	panic("implement me")
+}
+
 // SessionDuration returns the duration set for the session
 func (p *CouchbaseProvider) SessionDuration() time.Duration {
 	return time.Duration(p.maxlifetime)
