@@ -215,8 +215,8 @@ func (p *MemcacheProvider) ReadSessionHubStore(uid string) (session.HubStore, er
 	panic("implement me")
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *MemcacheProvider) FlushNonCompatibleUserSessionHubData() error {
+// FlushNonCompatibleData deletes the older versions of UserSessionHub data
+func (p *MemcacheProvider) FlushNonCompatibleData() error {
 	panic("implement me")
 }
 

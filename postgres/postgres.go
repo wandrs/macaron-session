@@ -213,8 +213,8 @@ func (p *PostgresProvider) ReadSessionHubStore(uid string) (session.HubStore, er
 	panic("implement me")
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *PostgresProvider) FlushNonCompatibleUserSessionHubData() error {
+// FlushNonCompatibleData deletes the older versions of UserSessionHub data
+func (p *PostgresProvider) FlushNonCompatibleData() error {
 	panic("implement me")
 }
 

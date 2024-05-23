@@ -244,8 +244,8 @@ func (p *CouchbaseProvider) ReadSessionHubStore(uid string) (session.HubStore, e
 	panic("implement me")
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *CouchbaseProvider) FlushNonCompatibleUserSessionHubData() error {
+// FlushNonCompatibleData deletes the older versions of UserSessionHub data
+func (p *CouchbaseProvider) FlushNonCompatibleData() error {
 	panic("implement me")
 }
 

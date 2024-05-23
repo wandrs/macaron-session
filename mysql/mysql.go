@@ -212,8 +212,8 @@ func (p *MysqlProvider) ReadSessionHubStore(uid string) (session.HubStore, error
 	panic("implement me")
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *MysqlProvider) FlushNonCompatibleUserSessionHubData() error {
+// FlushNonCompatibleData deletes the older versions of UserSessionHub data
+func (p *MysqlProvider) FlushNonCompatibleData() error {
 	panic("implement me")
 }
 

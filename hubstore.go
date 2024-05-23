@@ -21,6 +21,7 @@ type HubStore interface {
 	RemoveAll() error
 	RemoveExcept(string) error
 	ReleaseHubData() error
+	IsExistsSession(sid string) bool
 
 	// TODO: add functions for managing device location infos
 }
