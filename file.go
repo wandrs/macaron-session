@@ -218,7 +218,7 @@ func (h *FileHubStore) ReleaseHubData() error {
 
 func (h *FileHubStore) executeCleanup() error {
 	for sid, _ := range h.cleanup {
-		if err := os.Remove(h.p.filepath(sid)); err != nil {
+		if err := os.Remove(h.p.filepath(sid)); err != nil && !os.IsNotExist(err) {
 			slog.Error("failed to cleanup session: %v", err)
 		}
 	}
@@ -252,7 +252,11 @@ var _ Provider = (*FileProvider)(nil)
 // Init initializes file session provider with given root path.
 func (p *FileProvider) Init(maxlifetime int64, rootPath string) error {
 	p.lock.Lock()
-	p.maxlifetime = maxlifetime
+	mlt, err := time.ParseDuration(fmt.Sprintf("%ds", maxlifetime))
+	if err != nil {
+		return err
+	}
+	p.maxlifetime = int64(mlt)
 	p.rootPath = rootPath
 	p.lock.Unlock()
 	return nil
@@ -451,8 +455,17 @@ func (p *FileProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 	return NewFileHubStore(p, uid, hubData)
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *FileProvider) FlushNonCompatibleUserSessionHubData() error {
+func (h *FileHubStore) IsExistsSession(sid string) bool {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	_, found := h.data.SessionStore[sid]
+
+	return found
+}
+
+// FlushNonCompatibleData deletes the older versions of UserSessionHub data
+func (p *FileProvider) FlushNonCompatibleData() error {
 	return nil
 }
 

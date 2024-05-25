@@ -21,6 +21,9 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"io"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/unknwon/com"
@@ -79,4 +82,19 @@ func generateRandomKey(strength int) []byte {
 		return com.RandomCreateBytes(strength, alphanum...)
 	}
 	return k
+}
+
+func IsZerothReplica() bool {
+	hostname, found := os.LookupEnv("HOSTNAME")
+	if !found {
+		return false
+	}
+
+	parts := strings.Split(hostname, "-")
+	sn, err := strconv.ParseInt(parts[len(parts)-1], 10, 64)
+	if err != nil {
+		return false
+	}
+
+	return sn == 0
 }

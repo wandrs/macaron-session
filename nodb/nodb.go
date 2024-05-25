@@ -217,8 +217,8 @@ func (p *NodbProvider) ReadSessionHubStore(uid string) (session.HubStore, error)
 	panic("implement me")
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *NodbProvider) FlushNonCompatibleUserSessionHubData() error {
+// FlushNonCompatibleData deletes the older versions of UserSessionHub data
+func (p *NodbProvider) FlushNonCompatibleData() error {
 	panic("implement me")
 }
 

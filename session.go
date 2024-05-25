@@ -20,6 +20,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -178,7 +179,10 @@ func Sessioner(options ...Options) macaron.Handler {
 	if err != nil {
 		panic(err)
 	}
-	manager.FlushNonCompatibleUserSessionHubData()
+	err = manager.FlushNonCompatibleData()
+	if err != nil {
+		log.Fatal(err)
+	}
 	go manager.startGC()
 
 	return func(ctx *macaron.Context) {
@@ -238,9 +242,11 @@ func Sessioner(options ...Options) macaron.Handler {
 			if err = s.HubStore.ReleaseHubData(); err != nil {
 				panic("HubStore(release)" + err.Error())
 			}
-		}
-		if err = sess.Release(); err != nil {
-			panic("session(release): " + err.Error())
+			if s.IsExistsSession(s.ID()) {
+				if err = sess.Release(); err != nil {
+					panic("session(release): " + err.Error())
+				}
+			}
 		}
 	}
 }
@@ -253,8 +259,8 @@ type Provider interface {
 	Read(sid string) (RawStore, error)
 	// ReadSessionHubStore returns all the sessions of user specified by user id
 	ReadSessionHubStore(uid string) (HubStore, error)
-	// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-	FlushNonCompatibleUserSessionHubData() error
+	// FlushNonCompatibleData deletes the older versions of non-compatible data
+	FlushNonCompatibleData() error
 	// SessionDuration returns the duration set for the session
 	SessionDuration() time.Duration
 	// Exist returns true if session with given ID exists.
@@ -453,6 +459,6 @@ func (m *Manager) ReadSessionHubOfUser(uid string) (HubStore, error) {
 	return m.provider.ReadSessionHubStore(uid)
 }
 
-func (m *Manager) FlushNonCompatibleUserSessionHubData() {
-	m.provider.FlushNonCompatibleUserSessionHubData()
+func (m *Manager) FlushNonCompatibleData() error {
+	return m.provider.FlushNonCompatibleData()
 }

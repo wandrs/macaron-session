@@ -238,8 +238,8 @@ func (p *LedisProvider) ReadSessionHubStore(uid string) (session.HubStore, error
 	panic("implement me")
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *LedisProvider) FlushNonCompatibleUserSessionHubData() error {
+// FlushNonCompatibleData deletes the older versions of UserSessionHub data
+func (p *LedisProvider) FlushNonCompatibleData() error {
 	panic("implement me")
 }
 

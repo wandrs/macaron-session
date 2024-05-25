@@ -96,13 +96,9 @@ func (s *RedisStore) Release() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// Skip if the hub release process already deleted the session
-	if !s.Exist() {
-		return nil
-	}
-
-	// Skip encoding if the data is empty
-	if len(s.data) == 0 {
+	// Skip encoding if the data is either empty or the user id is not set.
+	// In that case we don't need to save it to the server.
+	if len(s.data) == 0 || s.data[session.KeyUserID] == nil {
 		return nil
 	}
 
@@ -228,9 +224,6 @@ func (h *RedisHubStore) ReleaseHubData() error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	if len(h.data.SessionStore) == 0 {
-		return nil
-	}
 	_ = h.flushExpired()
 
 	data, err := session.EncodedUserSessionHub(h.data)
@@ -299,6 +292,15 @@ func (h *RedisHubStore) List() []session.SessInfo {
 	}
 
 	return sessions
+}
+
+func (h *RedisHubStore) IsExistsSession(sid string) bool {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	_, found := h.data.SessionStore[sid]
+
+	return found
 }
 
 /* ================================== RedisProvider ======================================== */
@@ -409,23 +411,22 @@ func (p *RedisProvider) initSentinel(cfg *ini.File) (err error) {
 // Read returns raw session store by session ID.
 func (p *RedisProvider) Read(sid string) (session.RawStore, error) {
 	psid := p.prefix + sid
-	if !p.Exist(sid) {
-		if err := p.c.Set(ctx, psid, "", p.duration).Err(); err != nil {
-			return nil, err
-		}
-	}
 
 	var kv map[interface{}]interface{}
-	kvs, err := p.c.Get(ctx, psid).Result()
-	if err != nil {
-		return nil, err
-	}
-	if len(kvs) == 0 {
+	if !p.Exist(sid) {
 		kv = make(map[interface{}]interface{})
 	} else {
-		kv, err = session.DecodeGob([]byte(kvs))
+		kvs, err := p.c.Get(ctx, psid).Result()
 		if err != nil {
 			return nil, err
+		}
+		if len(kvs) == 0 {
+			kv = make(map[interface{}]interface{})
+		} else {
+			kv, err = session.DecodeGob([]byte(kvs))
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -592,8 +593,70 @@ func (p *RedisProvider) ReadSessionHubStore(uid string) (session.HubStore, error
 	return NewRedisHubStore(p.c, uid, p.prefix, hubData)
 }
 
-// FlushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
-func (p *RedisProvider) FlushNonCompatibleUserSessionHubData() error {
+// FlushNonCompatibleData deletes the older versions of non-compatible data
+func (p *RedisProvider) FlushNonCompatibleData() error {
+	if !session.IsZerothReplica() {
+		return nil
+	}
+	slog.Info("Started flushing non compatible data...")
+	err := p.flushNonCompatibleSessionData()
+	if err != nil {
+		return err
+	}
+
+	return p.flushNonCompatibleUserSessionHubData()
+}
+
+func (p *RedisProvider) flushNonCompatibleSessionData() error {
+	keyPattern := fmt.Sprintf("%s*", p.prefix)
+	countBatchProcess := int64(100)
+
+	var cursor uint64
+	var err error
+	var keys []string
+	for {
+		keys, cursor, err = p.c.Scan(ctx, cursor, keyPattern, countBatchProcess).Result()
+		if err != nil {
+			return fmt.Errorf("flush non compatible sesssion data error: failed to scan pattern %v", keyPattern)
+		}
+
+		pipeline := p.c.Pipeline()
+		var cmds []*redis.StringCmd
+		for _, key := range keys {
+			cmds = append(cmds, pipeline.Get(ctx, key))
+		}
+
+		_, err = pipeline.Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("flush non compatible sesssion data error: failed to execute redis pipeline")
+		}
+
+		for i, cmd := range cmds {
+			result, err := cmd.Result()
+			if err != nil {
+				return fmt.Errorf("flush non compatible sesssion data error: %v", err)
+			}
+			data, err := session.DecodeGob([]byte(result))
+			if err != nil || data == nil || data[session.KeyUserID] == nil {
+				err = p.c.Del(ctx, keys[i]).Err()
+				if err != nil {
+					return fmt.Errorf("flush non compatible sesssion data error: %v", err)
+				}
+			}
+		}
+
+		_ = pipeline.Close()
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return nil
+}
+
+// flushNonCompatibleUserSessionHubData deletes the older versions of UserSessionHub data
+func (p *RedisProvider) flushNonCompatibleUserSessionHubData() error {
 	keyPattern := getHubStoreKeyPattern()
 	countBatchProcess := int64(100)
 

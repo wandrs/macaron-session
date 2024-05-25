@@ -9,7 +9,6 @@ require (
 	github.com/go-redis/redis/v8 v8.4.0
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/lib/pq v1.2.0
-	github.com/oschwald/geoip2-golang v1.9.0
 	github.com/siddontang/ledisdb v0.0.0-20190202134119-8ceb77e66a92
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337
 	github.com/unknwon/com v1.0.1
