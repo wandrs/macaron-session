@@ -16,6 +16,7 @@ import (
 // HubStore manages the session hub store of a user
 type HubStore interface {
 	Add(string, SessInfo) error
+	GetSessionInfo(string) *SessInfo
 	Remove(string) error
 	List() []SessInfo
 	RemoveAll() error
@@ -23,11 +24,16 @@ type HubStore interface {
 	ReleaseHubData() error
 	IsExistsSession(sid string) bool
 
+	AddRMID(rmid string, exp time.Time) error
+	IsExistsRMID(rmid string) bool
+	RemoveRMID(rmid string) error
+
 	// TODO: add functions for managing device location infos
 }
 
 type SessInfo struct {
 	SessionID string    `json:"sessionID"`
+	RMID      string    `json:"rmid,omitempty"`
 	Exp       time.Time `json:"exp"`
 
 	AgentName    string    `json:"agentName"`
@@ -56,31 +62,36 @@ type DeviceLocationInfo struct {
 // CurrentHubStoreVersion is used to indicate the current hub store data structure version.
 // Change the version to if the current data structure or information is incompatible with the previous one.
 // Using this, delete the previous incompatible information before starting the application.
-var CurrentHubStoreVersion = "v0.1.0"
+var CurrentHubStoreVersion = "v0.2.0"
 
 type UserSessionHub struct {
 	Version             string                        `json:"version"`
 	UserID              string                        `json:"userID"`
+	RMIDStore           map[string]time.Time          `json:"RMIDStore"`    // map[rememberMeUUID]expirationTime
 	SessionStore        map[string]SessInfo           `json:"sessionStore"` // map[sessionID]SessInfo
 	DeviceLocationStore map[string]DeviceLocationInfo `json:"deviceLocationStore"`
 }
 
-func NewUserSessionHub(userID string, ss map[string]SessInfo, dls map[string]DeviceLocationInfo) *UserSessionHub {
+func NewUserSessionHub(userID string, ss map[string]SessInfo, dls map[string]DeviceLocationInfo, rs map[string]time.Time) *UserSessionHub {
 	if ss == nil {
 		ss = make(map[string]SessInfo)
 	}
 	if dls == nil {
 		dls = make(map[string]DeviceLocationInfo)
 	}
+	if rs == nil {
+		rs = make(map[string]time.Time)
+	}
 
 	return &UserSessionHub{
 		Version:             CurrentHubStoreVersion,
 		UserID:              userID,
+		RMIDStore:           rs,
 		SessionStore:        ss,
 		DeviceLocationStore: dls,
 	}
 }
 
 func NewEmptyUserSessionData(userID string) ([]byte, error) {
-	return json.Marshal(NewUserSessionHub(userID, nil, nil))
+	return json.Marshal(NewUserSessionHub(userID, nil, nil, nil))
 }
