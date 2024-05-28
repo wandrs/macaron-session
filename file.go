@@ -180,16 +180,30 @@ func (h *FileHubStore) addForCleanUpExcept(sessionKey string) error {
 }
 
 func (h *FileHubStore) flushExpired() error {
+	currentTime := time.Now()
+
+	// Release SessionStore
 	backupData := make(map[string]SessInfo)
 	for k, si := range h.data.SessionStore {
 		backupData[k] = si
 	}
-	currentTime := time.Now()
 	for k, si := range backupData {
 		if si.Exp.Before(currentTime) {
 			h.cleanup[k] = struct{}{}
 			delete(h.data.SessionStore, k)
 		}
+	}
+
+	// Release RMIDStore
+	expRMIDs := make([]string, 0)
+	for rmid, exp := range h.data.RMIDStore {
+		if currentTime.After(exp) {
+			expRMIDs = append(expRMIDs, rmid)
+		}
+	}
+
+	for _, rmid := range expRMIDs {
+		delete(h.data.RMIDStore, rmid)
 	}
 
 	return nil
@@ -227,6 +241,9 @@ func (h *FileHubStore) executeCleanup() error {
 }
 
 func (h *FileHubStore) List() []SessInfo {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	sessions := make([]SessInfo, 0)
 	for _, si := range h.data.SessionStore {
 		if si.SessionID == "" {
@@ -236,6 +253,48 @@ func (h *FileHubStore) List() []SessInfo {
 	}
 
 	return sessions
+}
+
+func (h *FileHubStore) GetSessionInfo(sid string) *SessInfo {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	si, found := h.data.SessionStore[sid]
+	if !found {
+		return nil
+	}
+
+	return &si
+}
+
+func (h *FileHubStore) AddRMID(rmid string, exp time.Time) error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	h.data.RMIDStore[rmid] = exp
+
+	return nil
+}
+
+func (h *FileHubStore) IsExistsRMID(rmid string) bool {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	rmidExpTime, found := h.data.RMIDStore[rmid]
+	if !found {
+		return false
+	}
+
+	return time.Now().Before(rmidExpTime)
+}
+
+func (h *FileHubStore) RemoveRMID(rmid string) error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	delete(h.data.RMIDStore, rmid)
+
+	return nil
 }
 
 /* ================================== FileProvider ======================================== */
@@ -445,6 +504,7 @@ func (p *FileProvider) ReadSessionHubStore(uid string) (HubStore, error) {
 	}
 
 	var hubData UserSessionHub
+
 	if len(result) > 0 {
 		hubData, err = DecodeUserSessionHub(result)
 		if err != nil {
