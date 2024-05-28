@@ -96,9 +96,9 @@ func (s *RedisStore) Release() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	// Skip encoding if the data is either empty or the user id is not set.
+	// Skip encoding if the data is either empty or the user_id/marker is not set.
 	// In that case we don't need to save it to the server.
-	if len(s.data) == 0 || s.data[session.KeyUserID] == nil {
+	if len(s.data) == 0 || (s.data[session.KeyUserID] == nil && s.data[session.KeyMarkerMustSave] == nil) {
 		return nil
 	}
 

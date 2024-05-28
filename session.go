@@ -57,6 +57,7 @@ const (
 	KeyExpirationTime = "exp"
 	KeySessionInfo    = "si"
 	KeyRMID           = "_rmid"
+	KeyMarkerMustSave = "_ms"
 )
 
 // Store is the interface that contains all data for one session process with specific ID.
