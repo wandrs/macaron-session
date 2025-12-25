@@ -1,6 +1,6 @@
 module github.com/go-macaron/session
 
-go 1.22.1
+go 1.23.0
 
 require (
 	gitea.com/lunny/nodb v0.0.0-20200923032308-3238c4655727
@@ -28,17 +28,17 @@ require (
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20190430165422-3e4dfb77656c // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
-	github.com/oschwald/maxminddb-golang v1.11.0 // indirect
 	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-snappy v0.0.0-20140704025258-d8f7bb82a96d // indirect
 	github.com/siddontang/rdb v0.0.0-20150307021120-fc89ed2e418d // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
 	go.opentelemetry.io/otel v0.14.0 // indirect
-	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392 // indirect
-	golang.org/x/net v0.0.0-20201006153459-a7d1128ccaa0 // indirect
-	golang.org/x/sys v0.9.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 )
